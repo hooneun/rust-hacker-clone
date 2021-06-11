@@ -1467,6 +1467,7 @@ name = "rust-hacker-clone"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "serde",
  "tera",
 ]
 

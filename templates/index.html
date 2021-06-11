@@ -5,6 +5,11 @@
         <title>{{title}}</title>
     </head>
     <body>
-        Hello, {{name}}!
+	{% for post in posts %}
+	    <div>
+		<a href="{{ post.link }}">{{ post.title }}</a>
+		<small>{{ post.author }}</small>
+	    </div>
+	{% endfor %}
     </body>
 </html>
