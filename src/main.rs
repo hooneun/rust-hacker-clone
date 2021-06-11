@@ -1,14 +1,24 @@
-use actix_web::{get, App,  HttpResponse, HttpServer, Responder};
+use actix_web::{App, HttpResponse, HttpServer, Responder, get, web};
+use tera::{Context, Tera};
 
 #[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello world!")
+async fn index(tera: web::Data<Tera>) -> impl Responder {
+    let mut data = Context::new();
+    data.insert("title", "Hacker Clone");
+    data.insert("name", "hooneun");
+
+    let rendered = tera.render("index.html", &data).unwrap();
+    HttpResponse::Ok().body(rendered)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().service(hello))
-        .bind("127.0.0.1:8080")?
-        .run()
-        .await
+    HttpServer::new(|| {
+        App::new()
+            .data(Tera::new("templates/**/*").unwrap())
+            .service(index)
+    })
+    .bind("127.0.0.1:8080")?
+    .run()
+    .await
 }
