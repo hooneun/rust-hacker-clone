@@ -3,6 +3,7 @@ extern crate diesel;
 pub mod models;
 pub mod schema;
 
+use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
@@ -10,7 +11,7 @@ use tera::{Context, Tera};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenv::dotenv;
-use models::{NewUser, User};
+use models::{LoginUser, NewUser, User};
 
 fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -25,19 +26,6 @@ struct Submission {
     title: String,
     link: String,
 }
-
-#[derive(Debug, Deserialize)]
-struct LoginUser {
-    username: String,
-    password: String,
-}
-
-// #[derive(Debug, Deserialize)]
-// struct User {
-//     username: String,
-//     email: String,
-//     password: String,
-// }
 
 #[derive(Serialize)]
 struct Post {
@@ -93,18 +81,48 @@ async fn process_signup(data: web::Form<NewUser>) -> impl Responder {
 }
 
 #[get("/login")]
-async fn login(tera: web::Data<Tera>) -> impl Responder {
+async fn login(tera: web::Data<Tera>, id: Identity) -> impl Responder {
     let mut data = Context::new();
     data.insert("title", "Login");
 
+    if let Some(_id) = id.identity() {
+        return HttpResponse::Ok().body("Already logged in.")
+    }
     let rendered = tera.render("login.html", &data).unwrap();
     HttpResponse::Ok().body(rendered)
 }
 
 #[post("/login")]
-async fn process_login(data: web::Form<LoginUser>) -> impl Responder {
-    println!("{:?}", data);
-    HttpResponse::Ok().body(format!("Logged in: {}", data.username))
+async fn process_login(data: web::Form<LoginUser>, id: Identity) -> impl Responder {
+    use schema::users::dsl::{username, users};
+
+    let connection = establish_connection();
+    let user = users
+        .filter(username.eq(&data.username))
+        .first::<User>(&connection);
+
+    match user {
+        Ok(u) => {
+            if u.password == data.password {
+                println!("{:?}", data);
+                let session_token = String::from(u.username);
+                id.remember(session_token);
+                HttpResponse::Ok().body(format!("Logged in: {}", data.username))
+            } else {
+                HttpResponse::Ok().body("Password is incorrect.")
+            }
+        }
+        Err(e) => {
+            println!("{:?}", e);
+            HttpResponse::Ok().body("User doesn't exist.")
+        }
+    }
+}
+
+#[post("/logout")]
+async fn logout(id: Identity) -> impl Responder {
+    id.forget();
+    HttpResponse::Ok().body("Logged out.")
 }
 
 #[get("/submission")]
@@ -126,13 +144,20 @@ async fn process_submission(data: web::Form<Submission>) -> impl Responder {
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
         App::new()
+            .wrap(IdentityService::new(
+                CookieIdentityPolicy::new(&[0; 32])
+                    .name("auth-cookie")
+                    .secure(false),
+            ))
             .data(Tera::new("templates/**/*").unwrap())
             .service(index)
             .service(signup)
+            .service(process_signup)
             .service(login)
             .service(process_login)
             .service(submission)
             .service(process_submission)
+            .service(logout)
     })
     .bind("127.0.0.1:8080")?
     .run()

@@ -11,3 +11,4 @@ tera = "1.10"
 serde = "1.0"
 dotenv = "0.15.0"
 diesel = { version = "1.4.4", features = ["postgres"] }
+actix-identity = "0.3.1"
