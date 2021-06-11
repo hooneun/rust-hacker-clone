@@ -17,7 +17,7 @@ fn establish_connection() -> PgConnection {
 
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
-    PgConnection::establish(&database_url).expect(format!("Error connecting to {}", database_url))
+    PgConnection::establish(&database_url).expect(&format!("Error connecting to {}", database_url))
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,7 +79,7 @@ async fn signup(tera: web::Data<Tera>) -> impl Responder {
 }
 
 #[post("/signup")]
-async fn process_signup(data: web::Form<User>) -> impl Responder {
+async fn process_signup(data: web::Form<NewUser>) -> impl Responder {
     use schema::users;
 
     let connection = establish_connection();
