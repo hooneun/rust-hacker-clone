@@ -1,6 +1,6 @@
-use actix_web::{App, HttpResponse, HttpServer, Responder, get, post, web};
+use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
+use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
-use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Deserialize)]
 struct Submission {
@@ -35,12 +35,12 @@ async fn index(tera: web::Data<Tera>) -> impl Responder {
         Post {
             title: String::from("This is the first link"),
             link: String::from("https://example.com"),
-            author: String::from("Bob")
+            author: String::from("Bob"),
         },
         Post {
             title: String::from("The Second Link"),
             link: String::from("https://example.com"),
-            author: String::from("Alice")
+            author: String::from("Alice"),
         },
     ];
 
