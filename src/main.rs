@@ -1,6 +1,24 @@
+#[macro_use]
+extern crate diesel;
+pub mod models;
+pub mod schema;
+
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use tera::{Context, Tera};
+
+use diesel::pg::PgConnection;
+use diesel::prelude::*;
+use dotenv::dotenv;
+use models::{NewUser, User};
+
+fn establish_connection() -> PgConnection {
+    dotenv().ok();
+
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+
+    PgConnection::establish(&database_url).expect(format!("Error connecting to {}", database_url))
+}
 
 #[derive(Debug, Deserialize)]
 struct Submission {
@@ -14,12 +32,12 @@ struct LoginUser {
     password: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct User {
-    username: String,
-    email: String,
-    password: String,
-}
+// #[derive(Debug, Deserialize)]
+// struct User {
+//     username: String,
+//     email: String,
+//     password: String,
+// }
 
 #[derive(Serialize)]
 struct Post {
@@ -62,7 +80,15 @@ async fn signup(tera: web::Data<Tera>) -> impl Responder {
 
 #[post("/signup")]
 async fn process_signup(data: web::Form<User>) -> impl Responder {
-    println!("{:?}", data);
+    use schema::users;
+
+    let connection = establish_connection();
+
+    diesel::insert_into(users::table)
+        .values(&*data)
+        .get_result::<User>(&connection)
+        .expect("Error registering user.");
+
     HttpResponse::Ok().body(format!("Successfully saved user: {}", data.username))
 }
 
