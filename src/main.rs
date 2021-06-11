@@ -11,7 +11,7 @@ use tera::{Context, Tera};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenv::dotenv;
-use models::{LoginUser, NewUser, User};
+use models::{LoginUser, NewPost, NewUser, Post, User};
 
 fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -27,28 +27,17 @@ struct Submission {
     link: String,
 }
 
-#[derive(Serialize)]
-struct Post {
+#[derive(Deserialize)]
+struct PostForm {
     title: String,
     link: String,
-    author: String,
 }
 
 #[get("/")]
 async fn index(tera: web::Data<Tera>) -> impl Responder {
     let mut data = Context::new();
-    let posts = [
-        Post {
-            title: String::from("This is the first link"),
-            link: String::from("https://example.com"),
-            author: String::from("Bob"),
-        },
-        Post {
-            title: String::from("The Second Link"),
-            link: String::from("https://example.com"),
-            author: String::from("Alice"),
-        },
-    ];
+
+    let posts = "";
 
     data.insert("title", "Hacker Clone");
     data.insert("posts", &posts);
@@ -86,7 +75,7 @@ async fn login(tera: web::Data<Tera>, id: Identity) -> impl Responder {
     data.insert("title", "Login");
 
     if let Some(_id) = id.identity() {
-        return HttpResponse::Ok().body("Already logged in.")
+        return HttpResponse::Ok().body("Already logged in.");
     }
     let rendered = tera.render("login.html", &data).unwrap();
     HttpResponse::Ok().body(rendered)
@@ -126,18 +115,47 @@ async fn logout(id: Identity) -> impl Responder {
 }
 
 #[get("/submission")]
-async fn submission(tera: web::Data<Tera>) -> impl Responder {
+async fn submission(tera: web::Data<Tera>, id: Identity) -> impl Responder {
     let mut data = Context::new();
     data.insert("title", "Submit a Post");
 
-    let rendered = tera.render("submission.html", &data).unwrap();
-    HttpResponse::Ok().body(rendered)
+    if let Some(_id) = id.identity() {
+        let rendered = tera.render("submission.html", &data).unwrap();
+        return HttpResponse::Ok().body(rendered);
+    }
+
+    HttpResponse::Ok().body("user not logged in.")
 }
 
 #[post("/submission")]
-async fn process_submission(data: web::Form<Submission>) -> impl Responder {
-    println!("{:?}", data);
-    HttpResponse::Ok().body(format!("Posted submission: {}", data.title))
+async fn process_submission(data: web::Form<PostForm>, id: Identity) -> impl Responder {
+    if let Some(id) = id.identity() {
+        use schema::users::dsl::{username, users};
+
+        let connection = establish_connection();
+        let user: Result<User, diesel::result::Error> =
+            users.filter(username.eq(id)).first(&connection);
+
+        match user {
+            Ok(u) => {
+                let new_post = NewPost::from_post_form(data.title.clone(), data.link.clone(), u.id);
+
+                use schema::posts;
+
+                diesel::insert_into(posts::table)
+                    .values(&new_post)
+                    .get_result::<Post>(&connection)
+                    .expect("Error saving post.");
+
+                return HttpResponse::Ok().body("Submitted.");
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                return HttpResponse::Ok().body("Failed to find user.");
+            }
+        }
+    }
+    HttpResponse::Unauthorized().body("User not logged in.")
 }
 
 #[actix_web::main]
