@@ -164,6 +164,41 @@ async fn process_submission(data: web::Form<PostForm>, id: Identity) -> impl Res
     HttpResponse::Unauthorized().body("User not logged in.")
 }
 
+async fn post_page(
+    tera: web::Data<Tera>,
+    id: Identity,
+    web::Path(post_id): web::Path<i32>,
+) -> impl Responder {
+    use schema::posts::dsl::posts;
+    use schema::users::dsl::users;
+
+    let connection = establish_connection();
+
+    let post: Post = posts
+        .find(post_id)
+        .get_result(&connection)
+        .expect("Failed to find post.");
+
+    let user: User = users
+        .find(post.author)
+        .get_result(&connection)
+        .expect("Failed to find user.");
+
+    let mut data = Context::new();
+    data.insert("title", &format!("{} - HackerClone", post.title));
+    data.insert("post", &post);
+    data.insert("user", &user);
+
+    if let Some(_id) = id.identity() {
+        data.insert("logged_in", "true");
+    } else {
+        data.insert("logged_in", "false");
+    }
+
+    let rendered = tera.render("post.html", &data).unwrap();
+    HttpResponse::Ok().body(rendered)
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     HttpServer::new(|| {
@@ -182,6 +217,11 @@ async fn main() -> std::io::Result<()> {
             .service(submission)
             .service(process_submission)
             .service(logout)
+            .service(
+                web::resource("/post/{post_id}")
+                    .route(web::get().to(post_page))
+                    .route(web::post().to(comment)),
+            )
     })
     .bind("127.0.0.1:8080")?
     .run()

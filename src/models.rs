@@ -1,4 +1,4 @@
-use super::schema::{posts, users};
+use super::schema::{comments, posts, users};
 use diesel::{Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 
@@ -48,6 +48,43 @@ impl NewPost {
             title,
             link,
             author,
+            created_at: chrono::Local::now().naive_utc(),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Queryable)]
+pub struct Comment {
+    pub id: i32,
+    pub comment: String,
+    pub post_id: i32,
+    pub user_id: i32,
+    pub parent_comment_id: Option<i32>,
+    pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Serialize, Insertable)]
+#[table_name = "comments"]
+pub struct NewComment {
+    pub comment: String,
+    pub post_id: i32,
+    pub user_id: i32,
+    pub parent_comment_id: Option<i32>,
+    pub created_at: chrone::NaiveDateTime,
+}
+
+impl NewComment {
+    pub fn new(
+        comment: String,
+        post_id: i32,
+        user_id: i32,
+        parent_comment_id: Option<i32>,
+    ) -> Self {
+        NewComment {
+            comment,
+            post_id,
+            user_id,
+            parent_comment_id,
             created_at: chrono::Local::now().naive_utc(),
         }
     }
