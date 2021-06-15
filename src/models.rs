@@ -70,7 +70,7 @@ pub struct NewComment {
     pub post_id: i32,
     pub user_id: i32,
     pub parent_comment_id: Option<i32>,
-    pub created_at: chrone::NaiveDateTime,
+    pub created_at: chrono::NaiveDateTime,
 }
 
 impl NewComment {
