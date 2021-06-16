@@ -24,7 +24,7 @@ pub struct LoginUser {
     pub password: String,
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable, Identifiable)]
 pub struct Post {
     pub id: i32,
     pub title: String,
@@ -53,7 +53,8 @@ impl NewPost {
     }
 }
 
-#[derive(Debug, Serialize, Queryable)]
+#[derive(Debug, Serialize, Queryable, Identifiable, Associations)]
+#[belongs_to(Post)]
 pub struct Comment {
     pub id: i32,
     pub comment: String,

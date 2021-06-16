@@ -11,7 +11,7 @@ use tera::{Context, Tera};
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use dotenv::dotenv;
-use models::{LoginUser, NewPost, NewUser, Post, User};
+use models::{Comment, LoginUser, NewComment, NewPost, NewUser, Post, User};
 
 fn establish_connection() -> PgConnection {
     dotenv().ok();
@@ -184,10 +184,16 @@ async fn post_page(
         .get_result(&connection)
         .expect("Failed to find user.");
 
+    let comments: Vec<(Comment, User)> = Comment::belonging_to(&post)
+        .inner_join(users)
+        .load(&connection)
+        .expect("Failed to find comments.");
+
     let mut data = Context::new();
     data.insert("title", &format!("{} - HackerClone", post.title));
     data.insert("post", &post);
     data.insert("user", &user);
+    data.insert("comments", &comments);
 
     if let Some(_id) = id.identity() {
         data.insert("logged_in", "true");
@@ -197,6 +203,53 @@ async fn post_page(
 
     let rendered = tera.render("post.html", &data).unwrap();
     HttpResponse::Ok().body(rendered)
+}
+
+#[derive(Deserialize)]
+struct CommentForm {
+    comment: String,
+}
+
+async fn comment(
+    data: web::Form<CommentForm>,
+    id: Identity,
+    web::Path(post_id): web::Path<i32>,
+) -> impl Responder {
+    if let Some(id) = id.identity() {
+        use schema::posts::dsl::posts;
+        use schema::users::dsl::{username, users};
+
+        let connection = establish_connection();
+
+        let post: Post = posts
+            .find(post_id)
+            .get_result(&connection)
+            .expect("Failed to find post");
+
+        let user: Result<User, diesel::result::Error> =
+            users.filter(username.eq(id)).first(&connection);
+
+        match user {
+            Ok(u) => {
+                let parent_id = None;
+                let new_comment = NewComment::new(data.comment.clone(), post.id, u.id, parent_id);
+
+                use schema::comments;
+                diesel::insert_into(comments::table)
+                    .values(&new_comment)
+                    .get_result::<Comment>(&connection)
+                    .expect("Error saving comment.");
+
+                return HttpResponse::Ok().body("Commented.");
+            }
+            Err(e) => {
+                println!("{:?}", e);
+                return HttpResponse::Ok().body("User not found");
+            }
+        }
+    }
+
+    HttpResponse::Unauthorized().body("Not logged in")
 }
 
 #[actix_web::main]
